@@ -291,6 +291,10 @@ html,body,[class*="css"]{{font-family:'Plus Jakarta Sans',sans-serif!important;b
 .example-title{{font-size:.88rem;font-weight:600;color:{NAVY};margin:.2rem 0;}}
 .example-desc{{font-size:.78rem;color:#64748B;margin:.15rem 0;}}
 .example-why{{font-size:.74rem;color:#94A3B8;font-style:italic;margin-top:.25rem;}}
+.ex-mini{{background:white;border-radius:10px;border:1px solid #E2E8F0;padding:.6rem .65rem;margin-bottom:.35rem;min-height:88px;}}
+.ex-mini:hover{{border-color:{TEAL};box-shadow:0 2px 6px rgba(13,148,136,.08);}}
+.ex-mini-sector{{font-size:.66rem;font-weight:700;color:{TEAL};text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem;}}
+.ex-mini-title{{font-size:.74rem;color:{NAVY};font-weight:500;line-height:1.25;}}
 .stButton>button{{background:{TEAL}!important;color:white!important;border:none!important;border-radius:10px!important;font-weight:600!important;padding:.6rem 1.4rem!important;width:100%!important;}}
 .stButton>button:hover{{background:#0a7a6e!important;}}
 .stTextInput>div>div>input,.stTextArea>div>div>textarea,.stSelectbox>div>div{{border-radius:9px!important;border-color:#E2E8F0!important;font-family:'Plus Jakarta Sans',sans-serif!important;}}
@@ -670,17 +674,52 @@ with t2:
     _shared_desc  = st.session_state.get("shared_desc",  "")
     _shared_tags  = st.session_state.get("shared_tags",  "")
 
-    # ── INPUT PANEL ───────────────────────────────────────────────────
-    if _shared_title:
-        st.markdown('<div class="insight-bar" style="padding:.45rem 1rem;font-size:.78rem;margin-bottom:.6rem">✨ Auto-filled from Predict tab — edit below if needed</div>', unsafe_allow_html=True)
+    # ── EXAMPLE CARDS (click to auto-fill all tabs) ──────────────────
+    st.markdown('<div class="sec-label" style="margin-bottom:.4rem">📋 Try an example — one click auto-fills this tab + Predict tab</div>', unsafe_allow_html=True)
+    ex_cols = st.columns(5)
+    EXAMPLES_5 = TITLE_DESC_EXAMPLES[:5]
+    for i, ex in enumerate(EXAMPLES_5):
+        with ex_cols[i]:
+            short_title = ex["title"] if len(ex["title"]) <= 38 else ex["title"][:35] + "..."
+            st.markdown(f"""
+            <div class="ex-mini">
+              <div class="ex-mini-sector">{ex['sector']}</div>
+              <div class="ex-mini-title">{short_title}</div>
+            </div>""", unsafe_allow_html=True)
+            if st.button("Use this", key=f"exb_{i}", use_container_width=True):
+                st.session_state["shared_title"] = ex["title"]
+                st.session_state["shared_desc"]  = ex["desc"]
+                _seed_map = {
+                    "🎮 Gaming": "minecraft, gaming",
+                    "✈️ Lifestyle / Travel": "travel, solotravel",
+                    "📚 Education": "python, tutorial",
+                    "😂 Comedy": "comedy, standup",
+                    "🔧 Sci-Tech": "tech, review",
+                    "⚽ Sports": "premierleague, football",
+                }
+                st.session_state["shared_tags"] = _seed_map.get(ex["sector"], "")
+                st.session_state["auto_analyze"] = True
+                st.rerun()
 
-    _left, _right = st.columns([3,1], gap="large")
-    with _left:
+    st.markdown("---")
+
+    # ── INPUT PANEL ───────────────────────────────────────────────────
+    # Re-read session_state after possible rerun from example click
+    _shared_title = st.session_state.get("shared_title", "")
+    _shared_desc  = st.session_state.get("shared_desc",  "")
+    _shared_tags  = st.session_state.get("shared_tags",  "")
+
+    if _shared_title:
+        st.markdown('<div class="insight-bar" style="padding:.45rem 1rem;font-size:.78rem;margin-bottom:.6rem">✨ Auto-filled — also synced to Predict tab</div>', unsafe_allow_html=True)
+
+    ic1, ic2, ic3 = st.columns([3,3,2])
+    with ic1:
         hs_title = st.text_input("Video title", value=_shared_title,
                                   placeholder="iPhone 16 Pro Honest Review — Camera Test vs Samsung Galaxy S25", key="htt")
+    with ic2:
         hs_desc = st.text_area("Description", value=_shared_desc,
-                                placeholder="In-depth camera comparison. Real-world tests, battery life...", height=90, key="hdt")
-    with _right:
+                                placeholder="In-depth camera comparison. Real-world tests, battery life...", height=68, key="hdt")
+    with ic3:
         hs_seeds_r = st.text_input("Seed hashtags (optional)", value=_shared_tags,
                                     placeholder="tech, review", key="hse")
         hs_n  = st.slider("# recommendations", 3, 10, 6, key="hnn")
@@ -688,7 +727,10 @@ with t2:
     hs_btn = st.button("🔍 Analyze Sector & Get Hashtags", key="hbtn")
     st.markdown("---")
 
-    if hs_btn and hs_title.strip():
+    # Auto-run if an example was just clicked
+    _auto = st.session_state.pop("auto_analyze", False)
+
+    if (hs_btn or _auto) and hs_title.strip():
         # Persist updated values
         st.session_state["shared_title"] = hs_title
         st.session_state["shared_desc"]  = hs_desc
@@ -780,11 +822,7 @@ with t2:
               </div>
             </div>""", unsafe_allow_html=True)
 
-            # Pill row
-            pills = "".join(f'<span class="hash-pill">{r["tag"]}</span>' for r in recs)
-            st.markdown(f'<div style="margin-bottom:.6rem">{pills}</div>', unsafe_allow_html=True)
-
-            # Detailed bars
+            # Detailed bars (single set, no duplicate pill row)
             for r in recs:
                 sc = r["score"]
                 lbl = "Strong" if sc>=70 else "Moderate" if sc>=50 else "Weak"
@@ -1063,9 +1101,6 @@ with t4:
         "Insight":["Limited features","Sector predictable from content alone","category_id adds only 2.6pp"],
     }),use_container_width=True,hide_index=True)
 
-# ── Footer ────────────────────────────────────────────────────────────
-nvid=meta.get("total_videos",20308)
-
 # ══════════════════════════════════════════════════════════════════════
 # TAB 5 · DATASET EDA (last tab — deepest info)
 # ══════════════════════════════════════════════════════════════════════
@@ -1106,14 +1141,14 @@ with t5:
                 xaxis=dict(showgrid=True, gridcolor="#F1F5F9", range=[0,sc.max()*1.18]))
             st.plotly_chart(fig, use_container_width=True)
 
+
         with r1c2:
             if "engagement_tier" in df_full.columns:
-                _tc = df_full["engagement_tier"].value_counts()
-                _tc_df = _tc.reset_index()
-                _tc_df.columns = ["tier","count"]
-                fig = px.pie(_tc_df, values="count", names="tier", hole=0.45,
+                _tc = df_full["engagement_tier"].value_counts().reset_index()
+                _tc.columns = ["tier", "count"]
+                fig = px.pie(_tc, values="count", names="tier", hole=0.45,
                              color="tier",
-                             color_discrete_map={"HIGH":TEAL,"MID":AMBER,"LOW":RED},
+                             color_discrete_map={"HIGH": TEAL, "MID": AMBER, "LOW": RED},
                              title="Engagement tier distribution (33/33/34% split)")
                 fig.update_traces(textinfo="label+percent", textfont_size=12)
                 fig.update_layout(height=270, paper_bgcolor="white",
