@@ -512,18 +512,23 @@ st.markdown("""
   <p>BTP-2 · Vaidik Sharma · 22MT10063 · IIT Kharagpur · Supervisor: Prof. Pabita Mitra</p></div>
 </div>""", unsafe_allow_html=True)
 
-t1,t2,t3,t4,t5,t6 = st.tabs([
-    "🔮 Predict & Analyze","🏷️ Hashtag Lab","🎯 Sector Analyzer",
-    "📊 Dataset EDA","⏰ Timing","🔬 Model Insights"])
+t1,t2,t3,t4,t5 = st.tabs([
+    "🔮 Predict & Analyze",
+    "🏷️ Hashtag & Sector",
+    "⏰ Timing",
+    "🔬 Model Insights",
+    "📊 Dataset EDA",
+])
 
 # ══════════════════════════════════════════════════════════════════════
-# TAB 1 · PREDICT
+
+# ══════════════════════════════════════════════════════════════════════
+# TAB 1 · PREDICT & ANALYZE
 # ══════════════════════════════════════════════════════════════════════
 with t1:
     st.markdown('<div class="model-badge">🤖 XGBoost Engagement Classifier · 34 features · 69.12% accuracy · 2.3s training time</div>', unsafe_allow_html=True)
 
-    # Title/description reference examples
-    with st.expander("📋 Title & Description Examples (click to see reference examples per sector)", expanded=False):
+    with st.expander("📋 Title & Description Examples — click to see high-performing formats per sector", expanded=False):
         cols = st.columns(2)
         for i, ex in enumerate(TITLE_DESC_EXAMPLES):
             with cols[i%2]:
@@ -535,13 +540,20 @@ with t1:
                   <div class="example-why">💡 {ex['why']}</div>
                 </div>""", unsafe_allow_html=True)
 
-    L,R=st.columns([1,1],gap="large")
+    L,R = st.columns([1,1], gap="large")
     with L:
         st.markdown('<div class="sec-label">Video Details</div>', unsafe_allow_html=True)
         title = st.text_input("Title", placeholder="I Survived 100 Days in Minecraft Hardcore Mode", key="pt")
         desc  = st.text_area("Description", placeholder="The ultimate challenge — 100 days of survival, building, exploring...", height=90, key="pd")
+        # Save to session_state → flows to all other tabs
+        if title: st.session_state["shared_title"] = title
+        if desc:  st.session_state["shared_desc"]  = desc
+        # Auto-detect sector
+        _sc = recommender.sector_scores(title, desc) if title else {}
+        _auto_idx = SECTORS.index(max(_sc, key=_sc.get)) if _sc and max(_sc.values()) > 15 else 4
         c1,c2 = st.columns(2)
-        sector  = c1.selectbox("Sector", SECTORS, index=4, key="ps")
+        sector  = c1.selectbox("Sector (auto-detected ✨)", SECTORS, index=_auto_idx, key="ps",
+                               help="Auto-detected from your title and description. Change if incorrect.")
         dur_min = c2.number_input("Duration (min)", 1, 180, 12, key="pdu")
         st.markdown('<div class="sec-label" style="margin-top:.8rem">Channel</div>', unsafe_allow_html=True)
         c3,c4 = st.columns(2)
@@ -553,6 +565,7 @@ with t1:
         uhour  = c6.slider("Hour (UTC)", 0, 23, 14, key="ph")
         country = st.selectbox("Country", list(COUNTRY_UTC.keys()), key="pc")
         etags_r = st.text_input("Existing hashtags (comma-separated)", placeholder="travel, solotravel", key="pet")
+        if etags_r: st.session_state["shared_tags"] = etags_r
         predict = st.button("🔮 Predict & Analyze", key="pbtn")
 
     with R:
@@ -571,7 +584,7 @@ with t1:
                  "hour_utc":uhour,"hour_local":hloc,"dow":dow,
                  "month":4,"week":17,"dur_sec":dur_min*60,"etags":etags,
                  "offset":offset,"country":country}
-            X     = prep_features(inp,FEATURES)
+            X     = prep_features(inp, FEATURES)
             probs = xgb_model.predict_proba(X)[0]
             tier  = INV_LABEL[int(probs.argmax())]
             conf  = int(probs.max()*100)
@@ -580,7 +593,6 @@ with t1:
 
             border_note=""
             if gap<8: border_note=f'<div style="font-size:.76rem;opacity:.85;margin-top:.3rem">⚡ Borderline — only {gap:.0f}% gap to next tier</div>'
-
             is_optimal=(uhour==best_utc)
             time_note=f"✅ Optimal for {sector}!" if is_optimal else f"💡 Best for {sector}: {best_utc:02d}:00 UTC = {best_disp:02d}:00 {best_period} {abbr}"
 
@@ -612,7 +624,7 @@ with t1:
               📅 <b>{uday}</b> &nbsp;·&nbsp; 🕐 Your slot: {uhour:02d}:00 UTC = {hloc:02d}:00 {abbr} {peak_icon} &nbsp;|&nbsp; {time_note}
             </div>""", unsafe_allow_html=True)
 
-            recs=recommender.recommend(title=title,description=desc,sector=sector,existing_tags=etags,n=5)
+            recs = recommender.recommend(title=title, description=desc, sector=sector, existing_tags=etags, n=5)
             if recs:
                 st.markdown('<div class="sec-label" style="margin-top:.8rem">Recommended hashtags</div>', unsafe_allow_html=True)
                 for r in recs:
@@ -627,208 +639,213 @@ with t1:
                       <span style="font-size:.71rem;color:#94A3B8;flex:2">{r['reason']}</span>
                     </div>""", unsafe_allow_html=True)
 
-            positives,warnings_,improvements=generate_reasoning(inp,tier,probs,FEATURES,IMP_DICT,best_utc,df_full)
+            positives,warnings_,improvements = generate_reasoning(inp,tier,probs,FEATURES,IMP_DICT,best_utc,df_full)
             st.markdown('<div class="sec-label" style="margin-top:1rem">Why this prediction?</div>', unsafe_allow_html=True)
             for p in positives: st.markdown(f'<div class="insight-bar">{p}</div>', unsafe_allow_html=True)
             for w in warnings_: st.markdown(f'<div class="warn-bar">{w}</div>', unsafe_allow_html=True)
             if improvements:
                 st.markdown('<div class="sec-label" style="margin-top:.8rem">How to reach HIGH tier</div>', unsafe_allow_html=True)
                 for imp in improvements: st.markdown(f'<div class="danger-bar">{imp}</div>', unsafe_allow_html=True)
-
         elif predict:
             st.warning("Please enter a video title.")
         else:
             st.markdown(f"""<div style="background:white;border:2px dashed #E2E8F0;border-radius:14px;padding:2.5rem;text-align:center;color:#94A3B8;margin-top:.5rem">
               <div style="font-size:2.5rem;margin-bottom:.5rem">🎬</div>
               <div style="font-size:1rem;font-weight:600;color:{NAVY}">Fill in the form and click Predict & Analyze</div>
-              <div style="font-size:.82rem;margin-top:.4rem">XGBoost · 34 features · 20,308 training videos<br>
-              ↑ Expand examples above to see high-performing titles per sector</div>
+              <div style="font-size:.82rem;margin-top:.4rem">
+                XGBoost · 34 features · 20,308 training videos<br>
+                Title entered here auto-fills Hashtag & Sector tab ✨
+              </div>
             </div>""", unsafe_allow_html=True)
 
+
 # ══════════════════════════════════════════════════════════════════════
-# TAB 2 · HASHTAG LAB
+# TAB 2 · HASHTAG & SECTOR (combined)
 # ══════════════════════════════════════════════════════════════════════
 with t2:
-    st.markdown('<div class="model-badge">🏷️ Taxonomy Co-occurrence Recommender · 52 topic clusters · Jaccard 0.276 · Recall@5 56.4%</div>', unsafe_allow_html=True)
-    HL,HR=st.columns([1,1],gap="large")
-    with HL:
-        ht=st.text_input("Video title",placeholder="I Survived 100 Days in Minecraft Hardcore Mode",key="htt")
-        hd=st.text_area("Description",placeholder="The ultimate gaming challenge...",height=75,key="hdt")
-        hs=st.selectbox("Sector",SECTORS,index=3,key="hst")
-        hse=st.text_input("Seed hashtags (optional)",placeholder="minecraft, gaming",key="hse")
-        hn=st.slider("Number of recommendations",3,10,6,key="hnn")
-        hbtn=st.button("🏷️ Get Recommendations",key="hbtn")
-    with HR:
-        if hbtn and ht:
-            seeds=[x.strip().lstrip("#").lower() for x in hse.split(",") if x.strip()]
-            recs=recommender.recommend(ht,hd,hs,seeds,n=hn)
-            st.markdown(f'<div class="sec-label">Top {len(recs)} recommendations — score varies by title/topic signal strength</div>', unsafe_allow_html=True)
-            pills="".join(f'<span class="hash-pill">{r["tag"]}</span>' for r in recs)
-            st.markdown(pills,unsafe_allow_html=True); st.write("")
-            for r in recs:
-                sc=r["score"]; lbl="Strong" if sc>=70 else "Moderate" if sc>=50 else "Weak"
-                c_=TEAL if sc>=70 else AMBER if sc>=50 else "#94A3B8"
-                a,b,cc,d_=st.columns([3,1,1,3])
-                a.markdown(f'<span class="hash-pill">{r["tag"]}</span>',unsafe_allow_html=True)
-                b.markdown(f'<b style="color:{c_}">{sc}%</b>',unsafe_allow_html=True)
-                cc.caption(lbl); d_.caption(r["reason"])
-                st.progress(sc/100)
-            st.markdown(f"""<div class="insight-bar" style="margin-top:.6rem">
-              <b>Score logic:</b> Tags with words directly in your title = 65–91%.
-              Tags matched via description or sector trend = 38–55%.
-              Tags with no title overlap get penalized to 28–40%.
-            </div>""", unsafe_allow_html=True)
-            if recs:
-                tags_r=[r["tag"] for r in recs]; scores_r=[r["score"] for r in recs]
-                fig=go.Figure(go.Scatterpolar(r=scores_r+[scores_r[0]],theta=tags_r+[tags_r[0]],
-                    fill="toself",fillcolor="rgba(13,148,136,.15)",
-                    line=dict(color=TEAL,width=2),marker=dict(size=6,color=TEAL)))
-                fig.update_layout(polar=dict(radialaxis=dict(visible=True,range=[0,100],tickfont=dict(size=9),tickvals=[25,50,75,100])),
-                    title="Confidence radar",height=270,paper_bgcolor="white",
-                    font=dict(family="Plus Jakarta Sans",size=11),margin=dict(l=20,r=20,t=48,b=20))
-                st.plotly_chart(fig,use_container_width=True)
-        elif hbtn:
-            st.info("Enter a video title.")
-        else:
-            st.markdown(f"""<div style="background:white;border:2px dashed #E2E8F0;border-radius:12px;padding:2.5rem;text-align:center;color:#94A3B8">
-              <div style="font-size:2rem;margin-bottom:.5rem">🏷️</div>
-              <div style="font-size:.9rem;font-weight:600;color:{NAVY}">Enter title + description → differentiated confidence scores</div>
-              <div style="font-size:.8rem;margin-top:.3rem">Scores 28–92% based on how strongly each tag matches your content</div>
+    st.markdown('<div class="model-badge">🏷️ Taxonomy Recommender · Jaccard 0.276 · Recall@5 56.4% &nbsp;+&nbsp; 🎯 CatBoost Sector Classifier · 96.5% accuracy</div>', unsafe_allow_html=True)
+
+    # Pre-fill from session_state if available
+    _shared_title = st.session_state.get("shared_title", "")
+    _shared_desc  = st.session_state.get("shared_desc",  "")
+    _shared_tags  = st.session_state.get("shared_tags",  "")
+
+    # ── INPUT PANEL ───────────────────────────────────────────────────
+    if _shared_title:
+        st.markdown('<div class="insight-bar" style="padding:.45rem 1rem;font-size:.78rem;margin-bottom:.6rem">✨ Auto-filled from Predict tab — edit below if needed</div>', unsafe_allow_html=True)
+
+    ic1, ic2, ic3 = st.columns([3,3,2])
+    with ic1:
+        hs_title = st.text_input("Video title", value=_shared_title,
+                                  placeholder="iPhone 16 Pro Honest Review — Camera Test vs Samsung Galaxy S25", key="htt")
+    with ic2:
+        hs_desc = st.text_area("Description", value=_shared_desc,
+                                placeholder="In-depth camera comparison. Real-world tests, battery life...", height=68, key="hdt")
+    with ic3:
+        hs_seeds_r = st.text_input("Seed hashtags (optional)", value=_shared_tags,
+                                    placeholder="tech, review", key="hse")
+        hs_n  = st.slider("# recommendations", 3, 10, 6, key="hnn")
+
+    hs_btn = st.button("🔍 Analyze Sector & Get Hashtags", key="hbtn")
+    st.markdown("---")
+
+    if hs_btn and hs_title.strip():
+        # Persist updated values
+        st.session_state["shared_title"] = hs_title
+        st.session_state["shared_desc"]  = hs_desc
+        st.session_state["shared_tags"]  = hs_seeds_r
+
+        hs_seeds = [x.strip().lstrip("#").lower() for x in hs_seeds_r.split(",") if x.strip()]
+
+        # ── COMPUTE ───────────────────────────────────────────────────
+        sec_scores  = recommender.sector_scores(hs_title, hs_desc, hs_seeds)
+        sorted_sec  = sorted(sec_scores.items(), key=lambda x: -x[1])
+        top_sec, top_val = sorted_sec[0]
+        sec2, val2       = sorted_sec[1] if len(sorted_sec)>1 else ("—",0)
+        is_uniform       = max(sec_scores.values()) - min(sec_scores.values()) < 5
+
+        # Auto-use top sector for hashtag recommendation
+        hs_sector = top_sec if not is_uniform else "Gaming"
+        recs = recommender.recommend(hs_title, hs_desc, hs_sector, hs_seeds, n=hs_n)
+
+        # ── LAYOUT: two sections side by side ─────────────────────────
+        sec_col, hash_col = st.columns([1,1], gap="large")
+
+        # ── SECTION 1: SECTOR ANALYSIS ────────────────────────────────
+        with sec_col:
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem">
+              <div style="font-size:1.5rem">🎯</div>
+              <div>
+                <div style="font-size:.68rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Content Sector</div>
+                <div style="font-size:1.4rem;font-weight:700;color:{TEAL}">{top_sec if not is_uniform else "Low signal"}</div>
+              </div>
+              <div style="margin-left:auto;text-align:right">
+                <div style="font-size:.68rem;color:#94A3B8">Affinity</div>
+                <div style="font-size:1.2rem;font-weight:700;color:{TEAL}">{top_val:.0f}%</div>
+              </div>
             </div>""", unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════════════════════════════
-# TAB 3 · SECTOR ANALYZER
-# ══════════════════════════════════════════════════════════════════════
-with t3:
-    st.markdown('<div class="model-badge">🎯 CatBoost Sector Classifier (ablation) · 96.5% accuracy · content features only · no YouTube metadata</div>', unsafe_allow_html=True)
-    SL,SR=st.columns([1,1],gap="large")
-    with SL:
-        sa_t=st.text_input("Video title",placeholder="Learn Python in 1 Hour — Complete Beginners Tutorial",key="sat")
-        sa_d=st.text_area("Description",placeholder="Code along projects for absolute beginners...",height=90,key="sad")
-        sa_h=st.text_input("Hashtags (comma-separated)",placeholder="python, programming, coding",key="sah")
-        sa_btn=st.button("🎯 Analyze Sector",key="sabtn")
-    with SR:
-        if sa_btn and sa_t.strip():
-            sa_seeds=[x.strip().lstrip("#").lower() for x in sa_h.split(",") if x.strip()]
-            sec_scores=recommender.sector_scores(sa_t,sa_d,sa_seeds)
-            sorted_sec=sorted(sec_scores.items(),key=lambda x:-x[1])
-            top_s,top_v=sorted_sec[0]; second_s,second_v=(sorted_sec[1] if len(sorted_sec)>1 else ("—",0))
-            vals=[v for _,v in sorted_sec]; is_uniform=max(vals)-min(vals)<5
             if is_uniform:
                 st.markdown(f"""<div class="warn-bar">
-                  ⚠️ <b>Low content signal</b> — no strong sector keywords detected.
-                  Add specific terms (e.g. 'minecraft', 'cooking recipe', 'python tutorial', 'premier league') for accurate classification.
+                  ⚠️ <b>Low sector signal</b> — no strong keywords detected.
+                  Add specific terms like "minecraft", "cooking", "python tutorial", "premier league" for better detection.
                 </div>""", unsafe_allow_html=True)
             else:
-                st.markdown(f"""<div class="tier-box" style="background:linear-gradient(135deg,{NAVY},{NAVY}cc)">
-                  <div style="font-size:.68rem;font-weight:700;opacity:.8;text-transform:uppercase;letter-spacing:.1em">Primary Sector</div>
-                  <div class="tier-name">🎯 {top_s}</div>
-                  <div style="font-size:.83rem;opacity:.85">Content affinity: {top_v:.0f}% &nbsp;·&nbsp; Secondary: {second_s} ({second_v:.0f}%)</div>
-                </div>""", unsafe_allow_html=True)
-            st.markdown('<div class="sec-label">Sector affinity breakdown</div>', unsafe_allow_html=True)
-            for sec,score in sorted_sec:
-                if score<0.5: continue
-                is_top=sec==top_s; bar_c=TEAL if is_top else AMBER if score>15 else "#CBD5E1"
-                st.markdown(f"""
-                <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.5rem">
-                  <span style="width:105px;font-size:.83rem;font-weight:{'700' if is_top else '400'};color:{NAVY if is_top else '#475569'}">{sec}</span>
-                  <div style="flex:1;background:#E2E8F0;border-radius:999px;height:9px">
-                    <div style="width:{min(score,100):.0f}%;background:{bar_c};border-radius:999px;height:9px"></div>
-                  </div>
-                  <span style="width:42px;text-align:right;font-size:.82rem;font-weight:600;color:{bar_c}">{score:.0f}%</span>
-                </div>""", unsafe_allow_html=True)
-            labels_=[s for s,v in sorted_sec if v>0.5]; values_=[v for s,v in sorted_sec if v>0.5]
-            if labels_ and not is_uniform:
-                fig=go.Figure(go.Pie(labels=labels_,values=values_,hole=0.45,
-                    marker_colors=[TEAL,AMBER,NAVY,"#7C3AED","#F97316","#06B6D4","#84CC16"][:len(labels_)],
-                    textinfo="label+percent",textfont_size=11))
-                fig.update_layout(title="Content sector distribution",height=260,paper_bgcolor="white",
-                    margin=dict(l=0,r=0,t=36,b=0),font=dict(family="Plus Jakarta Sans",size=11),showlegend=False)
-                st.plotly_chart(fig,use_container_width=True)
-            if not is_uniform and top_v>20:
-                cross=""
-                if second_v>20: cross=f" Overlap with <b>{second_s}</b> ({second_v:.0f}%) — cross-sector content broadens audience but may confuse algorithmic recommendations."
+                # Sector bars
+                for sec, score in sorted_sec:
+                    if score < 1.0: continue
+                    is_top = sec == top_sec
+                    bar_c  = TEAL if is_top else AMBER if score > 15 else "#CBD5E1"
+                    st.markdown(f"""
+                    <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.42rem">
+                      <span style="width:96px;font-size:.82rem;font-weight:{'700' if is_top else '400'};color:{NAVY if is_top else '#64748B'}">{sec}</span>
+                      <div style="flex:1;background:#E2E8F0;border-radius:999px;height:8px">
+                        <div style="width:{min(score,100):.0f}%;background:{bar_c};border-radius:999px;height:8px"></div>
+                      </div>
+                      <span style="width:36px;text-align:right;font-size:.82rem;font-weight:600;color:{bar_c}">{score:.0f}%</span>
+                    </div>""", unsafe_allow_html=True)
+
+                # Donut
+                labels_ = [s for s,v in sorted_sec if v > 1.0]
+                values_ = [v for s,v in sorted_sec if v > 1.0]
+                if labels_:
+                    fig_s = go.Figure(go.Pie(
+                        labels=labels_, values=values_, hole=0.5,
+                        marker_colors=[TEAL,AMBER,NAVY,"#7C3AED","#F97316","#06B6D4","#84CC16"][:len(labels_)],
+                        textinfo="label+percent", textfont_size=11))
+                    fig_s.update_layout(height=220, paper_bgcolor="white",
+                        margin=dict(l=0,r=0,t=8,b=0),
+                        font=dict(family="Plus Jakarta Sans",size=10), showlegend=False)
+                    st.plotly_chart(fig_s, use_container_width=True)
+
+                cross = f"  Secondary: <b>{sec2}</b> ({val2:.0f}%)" if val2 > 15 else ""
                 st.markdown(f"""<div class="insight-bar">
-                  <b>Primary: {top_s}</b> ({top_v:.0f}%).{cross}
-                  CatBoost achieves 96.5% sector accuracy from content features alone.
+                  <b>Primary sector: {top_sec}</b> ({top_val:.0f}% affinity).{cross}<br>
+                  <span style="font-size:.78rem">CatBoost achieves 96.5% sector accuracy from content alone.
+                  {'Cross-sector overlap may affect algorithmic recommendations.' if val2>20 else ''}</span>
                 </div>""", unsafe_allow_html=True)
-        elif sa_btn:
-            st.info("Enter a video title.")
-        else:
-            st.markdown(f"""<div style="background:white;border:2px dashed #E2E8F0;border-radius:12px;padding:2.5rem;text-align:center;color:#94A3B8">
-              <div style="font-size:2rem;margin-bottom:.5rem">🎯</div>
-              <div style="font-size:.9rem;font-weight:600;color:{NAVY}">Paste title + description → instant sector breakdown</div>
-              <div style="font-size:.8rem;margin-top:.3rem">No metadata needed — uses content signals only</div>
+
+        # ── SECTION 2: HASHTAG RECOMMENDATIONS ───────────────────────
+        with hash_col:
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem">
+              <div style="font-size:1.5rem">🏷️</div>
+              <div>
+                <div style="font-size:.68rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Hashtag Recommendations</div>
+                <div style="font-size:1.4rem;font-weight:700;color:{TEAL}">Top {len(recs)} tags</div>
+              </div>
+              <div style="margin-left:auto;text-align:right">
+                <div style="font-size:.68rem;color:#94A3B8">For sector</div>
+                <div style="font-size:.9rem;font-weight:700;color:{TEAL}">{hs_sector}</div>
+              </div>
             </div>""", unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════════════════════════════
-# TAB 4 · EDA
-# ══════════════════════════════════════════════════════════════════════
-with t4:
-    st.markdown('<div class="model-badge">📊 BTP-2 Dataset · 20,308 YouTube videos · 157 channels · 75 features · 8 sectors</div>', unsafe_allow_html=True)
-    if df_full.empty:
-        st.warning("Dataset not found — run eda.py first.")
-    else:
-        k1,k2,k3,k4,k5=st.columns(5)
-        k1.metric("Videos",f"{meta.get('total_videos',len(df_full)):,}")
-        k2.metric("Channels",f"{meta.get('unique_channels',157):,}")
-        k3.metric("Features",meta.get("schema_cols",75))
-        k4.metric("Sectors",len(meta.get("sectors",{})) or 8)
-        k5.metric("Median ER",f"{df_full['engagement_rate'].median():.2f}%" if "engagement_rate" in df_full.columns else "3.01%")
-        c1,c2=st.columns(2)
-        with c1:
-            sc=df_full["sector"].value_counts()
-            fig=go.Figure(go.Bar(x=sc.values,y=sc.index,orientation="h",
-                marker=dict(color=sc.values,colorscale=[[0,PALE],[1,NAVY]],showscale=False),
-                text=[f"{v:,}" for v in sc.values],textposition="outside",textfont=dict(size=11)))
-            fig.update_layout(title="Videos per sector",height=280,paper_bgcolor="white",plot_bgcolor="white",
-                margin=dict(l=0,r=50,t=36,b=0),font=dict(family="Plus Jakarta Sans",size=11),
-                yaxis=dict(autorange="reversed"),xaxis=dict(showgrid=True,gridcolor="#F1F5F9",range=[0,sc.max()*1.15]))
-            st.plotly_chart(fig,use_container_width=True)
-        with c2:
-            if "engagement_rate" in df_full.columns:
-                med=df_full.groupby("sector")["engagement_rate"].median().sort_values(ascending=False)
-                fig=go.Figure(go.Bar(x=med.index,y=med.values,
-                    marker=dict(color=med.values,colorscale=[[0,PALE],[1,TEAL]],showscale=False),
-                    text=[f"{v:.2f}%" for v in med.values],textposition="outside",textfont=dict(size=11)))
-                fig.update_layout(title="Median engagement rate by sector",height=280,paper_bgcolor="white",plot_bgcolor="white",
-                    margin=dict(l=0,r=0,t=36,b=40),font=dict(family="Plus Jakarta Sans",size=11),
-                    xaxis=dict(tickangle=-30),yaxis=dict(range=[0,med.max()*1.22],showgrid=True,gridcolor="#F1F5F9"))
-                st.plotly_chart(fig,use_container_width=True)
-        if "upload_dow" in df_full.columns and "upload_hour_utc" in df_full.columns and "engagement_rate" in df_full.columns:
-            pivot=(df_full.groupby(["upload_dow","upload_hour_utc"])["engagement_rate"].mean().unstack(fill_value=np.nan))
-            pivot.index=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][:len(pivot)]
-            fig=go.Figure(go.Heatmap(z=pivot.values,x=[f"{h:02d}:00" for h in pivot.columns],y=pivot.index,
-                colorscale=[[0,"#FFFBEB"],[0.4,"#FCD34D"],[0.7,AMBER],[1,RED]],hoverongaps=False,
-                hovertemplate="<b>%{y}</b> at <b>%{x}</b><br>Avg ER: <b>%{z:.2f}%</b><extra></extra>",
-                colorbar=dict(title="ER %",thickness=12,len=0.8)))
-            best_pos=np.unravel_index(np.nanargmax(pivot.values),pivot.shape)
-            fig.add_annotation(x=f"{pivot.columns[best_pos[1]]:02d}:00",y=pivot.index[best_pos[0]],
-                text="★ Best",showarrow=True,arrowhead=2,font=dict(size=10,color="black"),bgcolor="white",bordercolor="black",borderwidth=1)
-            fig.update_layout(title="Overall timing heatmap (all sectors) · hover for values · ★ = best slot",height=280,
-                paper_bgcolor="white",margin=dict(l=0,r=0,t=48,b=0),
-                font=dict(family="Plus Jakarta Sans",size=11),xaxis=dict(tickfont=dict(size=9)))
-            st.plotly_chart(fig,use_container_width=True)
-        if "hashtag_count" in df_full.columns and "engagement_rate" in df_full.columns:
-            hce=(df_full[df_full["hashtag_count"]<=12].groupby("hashtag_count")["engagement_rate"]
-                 .agg(["mean","count"]).reset_index())
-            hce=hce[hce["count"]>=30]
-            c_h=[TEAL if r["hashtag_count"]<=4 else RED for _,r in hce.iterrows()]
-            fig=go.Figure(go.Bar(x=hce["hashtag_count"],y=hce["mean"],marker_color=c_h,
-                text=[f"{v:.2f}%" for v in hce["mean"]],textposition="outside",textfont=dict(size=10)))
-            fig.add_vrect(x0=-0.5,x1=4.5,fillcolor=TEAL,opacity=0.06,line_width=0,
-                annotation_text="✅ Optimal (0–4)",annotation_position="top left",annotation_font=dict(size=9,color=TEAL))
-            fig.update_layout(title="🔑 BTP-2 Finding: 0 hashtags wins · Green=optimal · Red=avoid",height=260,
-                paper_bgcolor="white",plot_bgcolor="white",margin=dict(l=0,r=0,t=52,b=0),
-                font=dict(family="Plus Jakarta Sans",size=11),
-                xaxis=dict(title="Hashtag count",dtick=1),
-                yaxis=dict(title="Avg ER %",range=[0,hce["mean"].max()*1.22],showgrid=True,gridcolor="#F1F5F9"))
-            st.plotly_chart(fig,use_container_width=True)
+            # Pill row
+            pills = "".join(f'<span class="hash-pill">{r["tag"]}</span>' for r in recs)
+            st.markdown(f'<div style="margin-bottom:.6rem">{pills}</div>', unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════════════════════════════
-# TAB 5 · TIMING
-# ══════════════════════════════════════════════════════════════════════
-with t5:
+            # Detailed bars
+            for r in recs:
+                sc = r["score"]
+                lbl = "Strong" if sc>=70 else "Moderate" if sc>=50 else "Weak"
+                c_  = TEAL if sc>=70 else AMBER if sc>=50 else "#94A3B8"
+                st.markdown(f"""
+                <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.38rem">
+                  <span class="hash-pill" style="min-width:100px;text-align:center">{r['tag']}</span>
+                  <div style="flex:1;background:#E2E8F0;border-radius:999px;height:7px">
+                    <div style="width:{sc}%;background:{c_};border-radius:999px;height:7px"></div>
+                  </div>
+                  <span style="font-size:.78rem;font-weight:700;color:{c_};width:32px">{sc}%</span>
+                  <span style="font-size:.7rem;color:#94A3B8;width:52px">{lbl}</span>
+                  <span style="font-size:.7rem;color:#94A3B8;flex:2">{r['reason']}</span>
+                </div>""", unsafe_allow_html=True)
+
+            # Radar chart
+            if recs:
+                tags_r   = [r["tag"] for r in recs]
+                scores_r = [r["score"] for r in recs]
+                fig_r = go.Figure(go.Scatterpolar(
+                    r=scores_r+[scores_r[0]], theta=tags_r+[tags_r[0]],
+                    fill="toself", fillcolor="rgba(13,148,136,.15)",
+                    line=dict(color=TEAL,width=2), marker=dict(size=6,color=TEAL)))
+                fig_r.update_layout(
+                    polar=dict(radialaxis=dict(visible=True,range=[0,100],
+                               tickfont=dict(size=9),tickvals=[25,50,75,100])),
+                    title="Confidence radar", height=250, paper_bgcolor="white",
+                    font=dict(family="Plus Jakarta Sans",size=11),
+                    margin=dict(l=20,r=20,t=44,b=10))
+                st.plotly_chart(fig_r, use_container_width=True)
+
+            st.markdown(f"""<div class="insight-bar">
+              <b>Score logic:</b> Title word match = 65–91% · Description match = 38–60% ·
+              Sector trend only = 28–45%. Tags are ranked by how specifically they match
+              your content, not just how popular they are in the sector.
+            </div>""", unsafe_allow_html=True)
+
+    elif hs_btn:
+        st.info("Please enter a video title.")
+    else:
+        # Empty state — two columns with placeholder
+        ec1, ec2 = st.columns(2, gap="large")
+        with ec1:
+            st.markdown(f"""<div style="background:white;border:2px dashed #E2E8F0;border-radius:12px;padding:2rem;text-align:center;color:#94A3B8">
+              <div style="font-size:2rem;margin-bottom:.4rem">🎯</div>
+              <div style="font-size:.9rem;font-weight:600;color:{NAVY}">Sector Analysis</div>
+              <div style="font-size:.78rem;margin-top:.3rem">Primary sector + affinity breakdown<br>+ donut chart</div>
+            </div>""", unsafe_allow_html=True)
+        with ec2:
+            st.markdown(f"""<div style="background:white;border:2px dashed #E2E8F0;border-radius:12px;padding:2rem;text-align:center;color:#94A3B8">
+              <div style="font-size:2rem;margin-bottom:.4rem">🏷️</div>
+              <div style="font-size:.9rem;font-weight:600;color:{NAVY}">Hashtag Recommendations</div>
+              <div style="font-size:.78rem;margin-top:.3rem">Top {6} tags with confidence scores<br>+ radar chart</div>
+            </div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div style="text-align:center;color:#94A3B8;font-size:.82rem;margin-top:.5rem">
+          Enter title above and click <b>Analyze Sector & Get Hashtags</b>
+          {' &nbsp;·&nbsp; Or come from <b>Predict tab</b> — fields auto-fill ✨' if _shared_title else ''}
+        </div>""", unsafe_allow_html=True)
+
+with t3:
     st.markdown('<div class="model-badge">⏰ Temporal Analysis · Best UTC hour is sector-specific · Computed from 20,308 video dataset</div>', unsafe_allow_html=True)
     if not df_full.empty and "upload_dow" in df_full.columns and "engagement_rate" in df_full.columns:
         # Sector selector
@@ -931,7 +948,7 @@ with t5:
 # ══════════════════════════════════════════════════════════════════════
 # TAB 6 · MODEL INSIGHTS
 # ══════════════════════════════════════════════════════════════════════
-with t6:
+with t4:
     st.markdown('<div class="model-badge">🔬 All 5 Models · XGBoost 69.1% · RoBERTa 64.1% · CatBoost 99.1% · Ensemble 69.0% · Recommender Jaccard 0.276</div>', unsafe_allow_html=True)
 
     st.dataframe(pd.DataFrame({
@@ -1049,6 +1066,258 @@ with t6:
 
 # ── Footer ────────────────────────────────────────────────────────────
 nvid=meta.get("total_videos",20308)
+st.markdown(f"""
+<div class="dash-footer">
+  BTP-2 · YouTube Performance Predictor · Vaidik Sharma (22MT10063) · IIT Kharagpur ·
+  Prof. Pabita Mitra &nbsp;|&nbsp; 5 models · {nvid:,} videos · 75 features · XGBoost 69.12%
+</div>""", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════
+# TAB 5 · DATASET EDA (last tab — deepest info)
+# ══════════════════════════════════════════════════════════════════════
+with t5:
+    st.markdown('<div class="model-badge">📊 BTP-2 Dataset · 20,308 YouTube videos · 157 channels · 75 features · 8 sectors · YouTube Data API v3</div>', unsafe_allow_html=True)
+
+    if df_full.empty:
+        st.warning("Dataset not found at data/btp2_v1_labeled.parquet — run eda.py first.")
+    else:
+        # ── KPI row ──────────────────────────────────────────────────
+        k1,k2,k3,k4,k5,k6 = st.columns(6)
+        total_vids = meta.get("total_videos", len(df_full))
+        med_er  = df_full["engagement_rate"].median() if "engagement_rate" in df_full.columns else 0
+        mean_er = df_full["engagement_rate"].mean()   if "engagement_rate" in df_full.columns else 0
+        pct_high = (df_full["engagement_tier"]=="HIGH").mean()*100 if "engagement_tier" in df_full.columns else 33.3
+        k1.metric("Total Videos",  f"{total_vids:,}")
+        k2.metric("Channels",      f"{meta.get('unique_channels',157):,}")
+        k3.metric("Features",      meta.get("schema_cols", 75))
+        k4.metric("Median ER",     f"{med_er:.2f}%")
+        k5.metric("Mean ER",       f"{mean_er:.2f}%")
+        k6.metric("HIGH tier %",   f"{pct_high:.1f}%")
+
+        st.markdown("---")
+
+        # ── Row 1: Distribution charts ─────────────────────────────
+        st.markdown('<div class="sec-label">Distribution</div>', unsafe_allow_html=True)
+        r1c1, r1c2, r1c3 = st.columns(3)
+
+        with r1c1:
+            sc = df_full["sector"].value_counts()
+            fig = go.Figure(go.Bar(x=sc.values, y=sc.index, orientation="h",
+                marker=dict(color=sc.values, colorscale=[[0,PALE],[1,NAVY]], showscale=False),
+                text=[f"{v:,}" for v in sc.values], textposition="outside", textfont=dict(size=10)))
+            fig.update_layout(title="Videos per sector", height=270,
+                paper_bgcolor="white", plot_bgcolor="white",
+                margin=dict(l=0,r=50,t=36,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                yaxis=dict(autorange="reversed"),
+                xaxis=dict(showgrid=True, gridcolor="#F1F5F9", range=[0,sc.max()*1.18]))
+            st.plotly_chart(fig, use_container_width=True)
+
+        with r1c2:
+            if "engagement_tier" in df_full.columns:
+                tc = df_full["engagement_tier"].value_counts()
+                fig = go.Figure(go.Pie(values=tc.values, names=tc.index, hole=0.45,
+                    marker_colors=[TEAL if n=="HIGH" else AMBER if n=="MID" else RED for n in tc.index],
+                    textinfo="label+percent", textfont_size=12))
+                fig.update_layout(title="Engagement tier distribution (33/33/34% split)",
+                    height=270, paper_bgcolor="white",
+                    margin=dict(l=0,r=0,t=36,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                    showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+
+        with r1c3:
+            if "engagement_rate" in df_full.columns:
+                fig = go.Figure()
+                for tier_, c_ in [("HIGH",TEAL),("MID",AMBER),("LOW",RED)]:
+                    if "engagement_tier" in df_full.columns:
+                        sub_ = df_full[df_full["engagement_tier"]==tier_]["engagement_rate"]
+                    else:
+                        sub_ = df_full["engagement_rate"]
+                    fig.add_trace(go.Box(y=sub_, name=tier_, marker_color=c_,
+                        boxpoints=False, line=dict(width=2)))
+                fig.update_layout(title="Engagement rate distribution by tier",
+                    height=270, paper_bgcolor="white", plot_bgcolor="white",
+                    margin=dict(l=0,r=0,t=36,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                    yaxis=dict(title="ER %", showgrid=True, gridcolor="#F1F5F9", range=[0,15]),
+                    showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+
+        # ── Row 2: Engagement by sector + title length ──────────────
+        st.markdown('<div class="sec-label">Engagement patterns</div>', unsafe_allow_html=True)
+        r2c1, r2c2 = st.columns(2)
+
+        with r2c1:
+            if "engagement_rate" in df_full.columns:
+                med = df_full.groupby("sector")["engagement_rate"].median().sort_values(ascending=False)
+                fig = go.Figure(go.Bar(x=med.index, y=med.values,
+                    marker=dict(color=med.values, colorscale=[[0,PALE],[1,TEAL]], showscale=False),
+                    text=[f"{v:.2f}%" for v in med.values], textposition="outside", textfont=dict(size=11)))
+                fig.update_layout(title="Median engagement rate by sector",
+                    height=280, paper_bgcolor="white", plot_bgcolor="white",
+                    margin=dict(l=0,r=0,t=36,b=40), font=dict(family="Plus Jakarta Sans",size=11),
+                    xaxis=dict(tickangle=-30),
+                    yaxis=dict(range=[0,med.max()*1.22], showgrid=True, gridcolor="#F1F5F9"))
+                st.plotly_chart(fig, use_container_width=True)
+
+        with r2c2:
+            if "title_length_chars" in df_full.columns and "engagement_rate" in df_full.columns:
+                # Bin title lengths
+                bins = [0,20,40,60,80,100,200]
+                labels_b = ["0–20","21–40","41–60","61–80","81–100","100+"]
+                df_tl = df_full.copy()
+                df_tl["title_bin"] = pd.cut(df_tl["title_length_chars"], bins=bins, labels=labels_b)
+                tl_agg = df_tl.groupby("title_bin",observed=True)["engagement_rate"].agg(["mean","count"]).reset_index()
+                tl_agg = tl_agg[tl_agg["count"]>=30]
+                bar_c_ = [TEAL if lb in ["41–60","61–80"] else AMBER if lb in ["21–40"] else RED for lb in tl_agg["title_bin"].astype(str)]
+                fig = go.Figure(go.Bar(x=tl_agg["title_bin"].astype(str), y=tl_agg["mean"],
+                    marker_color=bar_c_,
+                    text=[f"{v:.2f}%" for v in tl_agg["mean"]],
+                    textposition="outside", textfont=dict(size=10)))
+                fig.add_vrect(x0=1.5,x1=3.5, fillcolor=TEAL, opacity=0.05, line_width=0,
+                    annotation_text="✅ Optimal (40–80 chars)", annotation_position="top left",
+                    annotation_font=dict(size=9,color=TEAL))
+                fig.update_layout(title="Title length vs engagement rate  (optimal: 40–80 chars)",
+                    height=280, paper_bgcolor="white", plot_bgcolor="white",
+                    margin=dict(l=0,r=0,t=36,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                    xaxis=dict(title="Title length (chars)"),
+                    yaxis=dict(title="Avg ER %", showgrid=True, gridcolor="#F1F5F9",
+                               range=[0, tl_agg["mean"].max()*1.22 if len(tl_agg)>0 else 5]))
+                st.plotly_chart(fig, use_container_width=True)
+
+        # ── Row 3: Timing heatmap + hashtag finding ─────────────────
+        st.markdown('<div class="sec-label">Timing & hashtag patterns</div>', unsafe_allow_html=True)
+
+        if "upload_dow" in df_full.columns and "upload_hour_utc" in df_full.columns and "engagement_rate" in df_full.columns:
+            pivot = (df_full.groupby(["upload_dow","upload_hour_utc"])["engagement_rate"]
+                     .mean().unstack(fill_value=np.nan))
+            pivot.index = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][:len(pivot)]
+            fig = go.Figure(go.Heatmap(
+                z=pivot.values, x=[f"{h:02d}:00" for h in pivot.columns], y=pivot.index,
+                colorscale=[[0,"#FFFBEB"],[0.4,"#FCD34D"],[0.7,AMBER],[1,RED]],
+                hoverongaps=False,
+                hovertemplate="<b>%{y}</b> at <b>%{x}</b><br>Avg ER: <b>%{z:.2f}%</b><extra></extra>",
+                colorbar=dict(title="ER %", thickness=12, len=0.8)))
+            best_pos = np.unravel_index(np.nanargmax(pivot.values), pivot.shape)
+            fig.add_annotation(x=f"{pivot.columns[best_pos[1]]:02d}:00", y=pivot.index[best_pos[0]],
+                text="★ Best", showarrow=True, arrowhead=2,
+                font=dict(size=10,color="black"), bgcolor="white", bordercolor="black", borderwidth=1)
+            fig.update_layout(title="Upload timing heatmap — hover for values · ★ = best slot",
+                height=280, paper_bgcolor="white",
+                margin=dict(l=0,r=0,t=48,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                xaxis=dict(tickfont=dict(size=9)))
+            st.plotly_chart(fig, use_container_width=True)
+
+        r3c1, r3c2 = st.columns(2)
+        with r3c1:
+            if "hashtag_count" in df_full.columns and "engagement_rate" in df_full.columns:
+                hce = (df_full[df_full["hashtag_count"]<=12]
+                       .groupby("hashtag_count")["engagement_rate"]
+                       .agg(["mean","count"]).reset_index())
+                hce = hce[hce["count"]>=30]
+                c_h = [TEAL if r["hashtag_count"]<=4 else RED for _,r in hce.iterrows()]
+                fig = go.Figure(go.Bar(x=hce["hashtag_count"], y=hce["mean"],
+                    marker_color=c_h,
+                    text=[f"{v:.2f}%" for v in hce["mean"]],
+                    textposition="outside", textfont=dict(size=10)))
+                fig.add_vrect(x0=-0.5,x1=4.5, fillcolor=TEAL, opacity=0.06, line_width=0,
+                    annotation_text="✅ Optimal (0–4)", annotation_position="top left",
+                    annotation_font=dict(size=9,color=TEAL))
+                fig.update_layout(title="🔑 Key finding: 0 hashtags wins (3.64%)",
+                    height=270, paper_bgcolor="white", plot_bgcolor="white",
+                    margin=dict(l=0,r=0,t=52,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                    xaxis=dict(title="Hashtag count", dtick=1),
+                    yaxis=dict(title="Avg ER %", range=[0,hce["mean"].max()*1.22 if len(hce)>0 else 5],
+                               showgrid=True, gridcolor="#F1F5F9"))
+                st.plotly_chart(fig, use_container_width=True)
+
+        with r3c2:
+            if "upload_dow" in df_full.columns and "engagement_rate" in df_full.columns:
+                dow_er = df_full.groupby("upload_dow")["engagement_rate"].mean()
+                dow_er.index = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][:len(dow_er)]
+                best_d = dow_er.idxmax()
+                c_days = [TEAL if d==best_d else "#CBD5E1" for d in dow_er.index]
+                fig = go.Figure(go.Bar(x=dow_er.index, y=dow_er.values, marker_color=c_days,
+                    text=[f"{v:.2f}%" for v in dow_er.values],
+                    textposition="outside", textfont=dict(size=11)))
+                fig.add_annotation(x=best_d, y=dow_er[best_d], text="★ Best day",
+                    showarrow=True, arrowhead=2, ay=-35,
+                    font=dict(size=10,color=TEAL), bgcolor="white", bordercolor=TEAL, borderwidth=1)
+                fig.update_layout(title=f"Best upload day: {best_d} (3.58% avg engagement)",
+                    height=270, paper_bgcolor="white", plot_bgcolor="white",
+                    margin=dict(l=0,r=0,t=48,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                    yaxis=dict(range=[dow_er.min()*0.97, dow_er.max()*1.12],
+                               showgrid=True, gridcolor="#F1F5F9"))
+                st.plotly_chart(fig, use_container_width=True)
+
+        # ── Row 4: Channel authority + duration ─────────────────────
+        st.markdown('<div class="sec-label">Channel authority & content signals</div>', unsafe_allow_html=True)
+        r4c1, r4c2 = st.columns(2)
+
+        with r4c1:
+            if "channel_subscribers" in df_full.columns and "engagement_rate" in df_full.columns:
+                # Bin subscribers into log-scale buckets
+                df_cs = df_full.copy()
+                bins_s  = [0, 10000, 50000, 100000, 500000, 1000000, 50000000]
+                labs_s  = ["<10K","10K–50K","50K–100K","100K–500K","500K–1M","1M+"]
+                df_cs["sub_bin"] = pd.cut(df_cs["channel_subscribers"], bins=bins_s, labels=labs_s)
+                sub_agg = df_cs.groupby("sub_bin", observed=True)["engagement_rate"].median().reset_index()
+                fig = go.Figure(go.Bar(x=sub_agg["sub_bin"].astype(str), y=sub_agg["engagement_rate"],
+                    marker=dict(color=sub_agg["engagement_rate"],
+                                colorscale=[[0,PALE],[1,NAVY]], showscale=False),
+                    text=[f"{v:.2f}%" for v in sub_agg["engagement_rate"]],
+                    textposition="outside", textfont=dict(size=10)))
+                fig.update_layout(title="Median ER by subscriber count (channel authority)",
+                    height=270, paper_bgcolor="white", plot_bgcolor="white",
+                    margin=dict(l=0,r=0,t=36,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                    xaxis=dict(title="Subscribers"),
+                    yaxis=dict(title="Median ER %", showgrid=True, gridcolor="#F1F5F9"))
+                st.plotly_chart(fig, use_container_width=True)
+
+        with r4c2:
+            if "duration_seconds" in df_full.columns and "engagement_rate" in df_full.columns:
+                df_dur = df_full[df_full["duration_seconds"]<=3600].copy()
+                df_dur["dur_min_bin"] = pd.cut(df_dur["duration_seconds"]/60,
+                    bins=[0,5,10,15,20,30,60], labels=["0–5","5–10","10–15","15–20","20–30","30–60"])
+                dur_agg = df_dur.groupby("dur_min_bin", observed=True)["engagement_rate"].agg(["mean","count"]).reset_index()
+                dur_agg = dur_agg[dur_agg["count"]>=30]
+                c_dur = [TEAL if lb in ["5–10","10–15"] else AMBER if lb in ["0–5","15–20"] else RED
+                         for lb in dur_agg["dur_min_bin"].astype(str)]
+                fig = go.Figure(go.Bar(x=dur_agg["dur_min_bin"].astype(str), y=dur_agg["mean"],
+                    marker_color=c_dur,
+                    text=[f"{v:.2f}%" for v in dur_agg["mean"]],
+                    textposition="outside", textfont=dict(size=10)))
+                fig.update_layout(title="Video duration vs engagement (5–15 min sweet spot)",
+                    height=270, paper_bgcolor="white", plot_bgcolor="white",
+                    margin=dict(l=0,r=0,t=36,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                    xaxis=dict(title="Duration (minutes)"),
+                    yaxis=dict(title="Avg ER %", showgrid=True, gridcolor="#F1F5F9",
+                               range=[0, dur_agg["mean"].max()*1.22 if len(dur_agg)>0 else 5]))
+                st.plotly_chart(fig, use_container_width=True)
+
+        # ── Key data insights ────────────────────────────────────────
+        st.markdown('<div class="sec-label" style="margin-top:.5rem">Key dataset findings</div>', unsafe_allow_html=True)
+        data_findings = [
+            (TEAL,  "3.01% median engagement rate across 20,308 videos",
+             "Range: 0.1%–45%. Distribution is heavily right-skewed — a small number of viral videos pull the mean up. The median (3.01%) is a more reliable baseline for realistic expectation-setting."),
+            (AMBER, "Thursday is the highest engagement upload day (3.58% avg)",
+             "Thursday consistently outperforms other days because the video has Friday–Sunday to organically spread. Weekend uploads face more competition and the algorithm doesn't have a full weekday window to push them."),
+            (NAVY,  "Channel age and subscriber count are the top 2 predictors",
+             "channel_total_videos (0.089), channel_subscribers (0.067), channel_age_days (0.062) — these three features alone account for 21.8% of the XGBoost model's predictive weight. Content quality is secondary."),
+            ("#7C3AED","Only 2% caption coverage due to YouTube IP restrictions",
+             "youtube-transcript-api was blocked by YouTube for most channels in the dataset. This is why transcript/caption features were excluded from the model — not enough coverage to be reliable."),
+            (TEAL,  "Comedy sector has highest per-video engagement (3.77% median)",
+             "Despite having fewer videos than Education or Gaming, Comedy content achieves the highest median engagement. Shorter, highly shareable content drives repeat engagement from existing subscribers."),
+            (RED,   "MID tier has lowest F1 score (0.57) for both XGBoost and RoBERTa",
+             "Videos in the MID tier are inherently ambiguous — they sit exactly at the boundary between HIGH and LOW. Neither structured features nor text embeddings can reliably distinguish them. A/B testing is recommended over model prediction for borderline content."),
+        ]
+        for color, title_, body in data_findings:
+            st.markdown(f"""<div style="background:white;border-left:4px solid {color};border-radius:0 10px 10px 0;
+                padding:.9rem 1.2rem;margin:.5rem 0;border:1px solid #E2E8F0;border-left:4px solid {color}">
+              <div style="font-weight:700;color:{NAVY};font-size:.88rem">📌 {title_}</div>
+              <div style="color:#475569;font-size:.82rem;margin-top:.3rem">{body}</div>
+            </div>""", unsafe_allow_html=True)
+
+# ── Footer ────────────────────────────────────────────────────────────
+nvid = meta.get("total_videos", 20308)
 st.markdown(f"""
 <div class="dash-footer">
   BTP-2 · YouTube Performance Predictor · Vaidik Sharma (22MT10063) · IIT Kharagpur ·
