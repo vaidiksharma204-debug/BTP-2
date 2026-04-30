@@ -674,14 +674,13 @@ with t2:
     if _shared_title:
         st.markdown('<div class="insight-bar" style="padding:.45rem 1rem;font-size:.78rem;margin-bottom:.6rem">✨ Auto-filled from Predict tab — edit below if needed</div>', unsafe_allow_html=True)
 
-    ic1, ic2, ic3 = st.columns([3,3,2])
-    with ic1:
+    _left, _right = st.columns([3,1], gap="large")
+    with _left:
         hs_title = st.text_input("Video title", value=_shared_title,
                                   placeholder="iPhone 16 Pro Honest Review — Camera Test vs Samsung Galaxy S25", key="htt")
-    with ic2:
         hs_desc = st.text_area("Description", value=_shared_desc,
-                                placeholder="In-depth camera comparison. Real-world tests, battery life...", height=68, key="hdt")
-    with ic3:
+                                placeholder="In-depth camera comparison. Real-world tests, battery life...", height=90, key="hdt")
+    with _right:
         hs_seeds_r = st.text_input("Seed hashtags (optional)", value=_shared_tags,
                                     placeholder="tech, review", key="hse")
         hs_n  = st.slider("# recommendations", 3, 10, 6, key="hnn")
@@ -1066,11 +1065,6 @@ with t4:
 
 # ── Footer ────────────────────────────────────────────────────────────
 nvid=meta.get("total_videos",20308)
-st.markdown(f"""
-<div class="dash-footer">
-  BTP-2 · YouTube Performance Predictor · Vaidik Sharma (22MT10063) · IIT Kharagpur ·
-  Prof. Pabita Mitra &nbsp;|&nbsp; 5 models · {nvid:,} videos · 75 features · XGBoost 69.12%
-</div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════
 # TAB 5 · DATASET EDA (last tab — deepest info)
@@ -1114,13 +1108,17 @@ with t5:
 
         with r1c2:
             if "engagement_tier" in df_full.columns:
-                tc = df_full["engagement_tier"].value_counts()
-                fig = go.Figure(go.Pie(values=tc.values, names=tc.index, hole=0.45,
-                    marker_colors=[TEAL if n=="HIGH" else AMBER if n=="MID" else RED for n in tc.index],
-                    textinfo="label+percent", textfont_size=12))
-                fig.update_layout(title="Engagement tier distribution (33/33/34% split)",
-                    height=270, paper_bgcolor="white",
-                    margin=dict(l=0,r=0,t=36,b=0), font=dict(family="Plus Jakarta Sans",size=11),
+                _tc = df_full["engagement_tier"].value_counts()
+                _tc_df = _tc.reset_index()
+                _tc_df.columns = ["tier","count"]
+                fig = px.pie(_tc_df, values="count", names="tier", hole=0.45,
+                             color="tier",
+                             color_discrete_map={"HIGH":TEAL,"MID":AMBER,"LOW":RED},
+                             title="Engagement tier distribution (33/33/34% split)")
+                fig.update_traces(textinfo="label+percent", textfont_size=12)
+                fig.update_layout(height=270, paper_bgcolor="white",
+                    margin=dict(l=0,r=0,t=36,b=0),
+                    font=dict(family="Plus Jakarta Sans",size=11),
                     showlegend=False)
                 st.plotly_chart(fig, use_container_width=True)
 
