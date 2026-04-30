@@ -1,0 +1,18 @@
+{
+  "model": "RoBERTa-base",
+  "task": "engagement_tier_classification",
+  "input": "title + description (text)",
+  "max_len": 128,
+  "batch_size": 16,
+  "epochs": 3,
+  "best_epoch": 3,
+  "learning_rate": 2e-05,
+  "val_accuracy": 0.6389,
+  "test_accuracy": 0.6406,
+  "btp1_baseline": 0.612,
+  "xgboost_accuracy": 0.6912,
+  "vs_btp1_pp": 2.86,
+  "vs_xgboost_pp": -5.06,
+  "train_time_min": 40.0,
+  "device": "mps"
+}

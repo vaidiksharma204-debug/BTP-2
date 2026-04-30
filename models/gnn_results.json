@@ -1,0 +1,13 @@
+{
+  "model": "Multi-signal co-occurrence recommender (dashboard)",
+  "jaccard": 0.2442,
+  "btp1_jaccard": 0.46,
+  "vs_btp1": -0.2158,
+  "gnn_jaccard": 0.057,
+  "note": "GNN underperformed due to sparse tag data (9250 videos). Co-occurrence baseline used as final recommender.",
+  "eval_method": "half_tags_as_seed_half_as_target",
+  "n_eval_videos": 3000,
+  "tfidf_title_based_jaccard": 0.1018,
+  "dashboard_recommender_jaccard": 0.2762,
+  "dashboard_recommender_recall": 0.5636
+}

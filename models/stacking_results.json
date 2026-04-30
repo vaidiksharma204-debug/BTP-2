@@ -1,0 +1,8 @@
+{
+  "stacking_test_accuracy": 0.6899,
+  "xgb_alone": 0.6912,
+  "rob_alone": 0.6406,
+  "oracle_ceiling": 0.782,
+  "vs_btp1_pp": 7.79,
+  "vs_xgboost_pp": -0.13
+}

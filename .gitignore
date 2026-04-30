@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+data/thumbnails/
+models/roberta_engagement/
+models/*.pt
+models/*.bin
+.DS_Store
+.env
+*.log
+.ipynb_checkpoints/

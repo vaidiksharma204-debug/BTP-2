@@ -1,0 +1,26 @@
+{
+  "total_videos": 20308,
+  "labeled_videos": 20308,
+  "unique_channels": 157,
+  "sectors": {
+    "Education": 5058,
+    "Gaming": 3340,
+    "Sports": 2795,
+    "Lifestyle": 2450,
+    "Entertainment": 2252,
+    "Comedy": 2170,
+    "Sci-Tech": 1920,
+    "DIY": 323
+  },
+  "label_dist": {
+    "HIGH": 6906,
+    "LOW": 6703,
+    "MID": 6699
+  },
+  "caption_pct": 1.9548946228087454,
+  "median_er": 3.010331684486584,
+  "schema_cols": 75,
+  "train_rows": 14215,
+  "val_rows": 3046,
+  "test_rows": 3047
+}
