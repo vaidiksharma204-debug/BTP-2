@@ -6,7 +6,6 @@
 |---|---|
 | **Student** | Vaidik Sharma (22MT10063) |
 | **Supervisor** | Prof. Pabita Mitra |
-| **Department** | School of Medical Science and Technology |
 | **Live Dashboard** | [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://vaidik6920-btp2-youtube-predictor.streamlit.app) |
 
 ---
