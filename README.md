@@ -90,8 +90,8 @@ btp2/
 
 ```bash
 # Clone
-git clone https://github.com/YOUR_USERNAME/btp2-youtube-predictor.git
-cd btp2-youtube-predictor
+git clone https://github.com/Vaidik6920/BTP-2.git
+cd BTP-2
 
 # Install dependencies
 pip install -r requirements.txt
